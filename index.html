@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>リスニング年表</title>
+<meta name="description" content="Spotify の再生履歴ファイルを読み込んで、年ごとの聴き方とアーティストの相関図を作るツール。データはブラウザの中だけで処理されます。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --ground:#eceef2; --surface:#ffffff; --ink:#161a22; --muted:#5b6270; --faint:#8a909c; --rule:#d6dae1; --track:#e3e6ec;
+  --accent:#2c5fd0; --other:#c5cad3; --y1:#a9b0bd; --y2:#2c5fd0; --up:#1f8a5b; --down:#c8502a; --flat:#aab0bb; --edge:#7f8794; --err:#b3261e; --errbg:#fbe9e7;
+  --display:"Dela Gothic One","Zen Kaku Gothic New",system-ui,sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){color-scheme:dark;
+    --ground:#12151b; --surface:#1b1f27; --ink:#eef0f4; --muted:#a7aebb; --faint:#7d8491; --rule:#2e3440; --track:#262b35;
+    --accent:#6e9bff; --other:#4a5160; --y1:#5d6574; --y2:#6e9bff; --up:#3fc48a; --down:#f07a4f; --flat:#5a6170; --edge:#8a93a3; --err:#ffb4a8; --errbg:#3a1712;}
+}
+:root[data-theme="dark"]{color-scheme:dark;
+  --ground:#12151b; --surface:#1b1f27; --ink:#eef0f4; --muted:#a7aebb; --faint:#7d8491; --rule:#2e3440; --track:#262b35;
+  --accent:#6e9bff; --other:#4a5160; --y1:#5d6574; --y2:#6e9bff; --up:#3fc48a; --down:#f07a4f; --flat:#5a6170; --edge:#8a93a3; --err:#ffb4a8; --errbg:#3a1712;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7;padding-inline:16px;padding-block:28px 56px}
+.wrap{max-width:1100px;margin:0 auto;display:grid;gap:22px}
+.stack{display:grid;gap:22px;min-width:0}
+h1,h2,h3{text-wrap:balance;margin:0}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(30px,5.4vw,52px);line-height:1.15;letter-spacing:.01em}
+h2{font-size:19px;font-weight:700}
+h3{font-size:16px;font-weight:700}
+a{color:var(--accent)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.lede{color:var(--muted);max-width:64ch;margin:8px 0 0}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:20px 22px;display:grid;gap:14px;min-width:0;align-content:start}
+.note{margin:0;color:var(--muted);font-size:13.5px;max-width:72ch}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font:inherit}
+.btn{font-size:14px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 16px;cursor:pointer}
+.btn:hover{border-color:var(--faint)}
+.btn.primary{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn:focus-visible,.seg button:focus-visible,.drop:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+/* intro */
+.drop{border:2px dashed var(--rule);border-radius:12px;background:var(--surface);padding:34px 20px;display:grid;gap:12px;justify-items:center;text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.drop p{margin:0}
+.drop .big{font-size:18px;font-weight:700}
+.drop input{position:absolute;width:1px;height:1px;opacity:0}
+.drop .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.status{font-size:14px;color:var(--muted);min-height:1.7em}
+.error{background:var(--errbg);color:var(--err);border-radius:8px;padding:10px 14px;font-size:14px}
+.steps{margin:0;padding-left:1.4em;display:grid;gap:6px;font-size:14px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:22px}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;font-size:13.5px;margin:0}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+/* app chrome */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ground);padding-block:10px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;border-bottom:1px solid var(--rule)}
+.bar .sum{font-size:13px;color:var(--muted);flex:1 1 220px}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font-size:14px;background:transparent;color:var(--muted);border:0;padding:7px 15px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.seg.mono button{font-family:var(--mono)}
+.yearbar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.yearbar .cov{font-size:13px;color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px 16px;display:grid;gap:2px;align-content:start}
+.kpi .label{font-size:12.5px;color:var(--muted)}
+.kpi .val{font-family:var(--display);font-size:28px;line-height:1.25}
+.kpi .val small{font-family:var(--body);font-size:14px;color:var(--muted);margin-left:4px}
+.kpi .prev{font-size:12.5px;color:var(--muted);min-height:1.7em}
+.delta{font-family:var(--mono);font-size:12px;padding:1px 7px;border-radius:99px;background:var(--track);color:var(--ink);margin-left:6px;white-space:nowrap}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.era{min-width:760px;display:grid;gap:6px}
+.era-bars{display:grid;gap:2px;align-items:end;height:130px}
+.era-bar{background:var(--track);border-radius:3px 3px 0 0;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+.era-bar span{display:block}
+.era-band{display:flex;gap:2px;height:34px}
+.era-seg{border-radius:4px;color:#fff;font-size:11.5px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;min-width:0}
+.era-months{display:grid;gap:2px;font-family:var(--mono);font-size:10.5px;color:var(--faint);text-align:center}
+.era-months b{display:block;color:var(--ink);font-weight:500}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.chart{position:relative;height:320px}
+.chart.sm{height:230px}
+.rank{display:grid}
+.rank-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto minmax(72px,auto);gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--rule);font-size:14px}
+.rank-row:last-child{border-bottom:0}
+.rank-row .r{font-family:var(--mono);color:var(--muted);text-align:right}
+.rank-row .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-row .h{font-family:var(--mono);font-size:12.5px;color:var(--muted);text-align:right}
+.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;background:var(--other);flex:none}
+.chip{font-family:var(--mono);font-size:11.5px;padding:2px 8px;border-radius:99px;text-align:center;white-space:nowrap}
+.up{background:#dff3e8;color:#0f6b43}.down{background:#fbe5dd;color:#9a3413}.flat{background:var(--track);color:var(--muted)}.newc{background:#e4e9fb;color:#2146a8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .up{background:#133a28;color:#7fe0ae}:root:not([data-theme="light"]) .down{background:#44200f;color:#ffab88}:root:not([data-theme="light"]) .newc{background:#1d2a55;color:#a9c0ff}}
+:root[data-theme="dark"] .up{background:#133a28;color:#7fe0ae}:root[data-theme="dark"] .down{background:#44200f;color:#ffab88}:root[data-theme="dark"] .newc{background:#1d2a55;color:#a9c0ff}
+.pairs{display:grid;gap:10px}
+.pair{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr);gap:12px;align-items:center;font-size:13.5px}
+.dir .pair{grid-template-columns:minmax(0,260px) minmax(0,1fr)}
+.pair .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pair .bars{display:grid;gap:3px}
+.pair .row{display:flex;gap:8px;align-items:center}
+.pair .b{height:8px;border-radius:0 3px 3px 0;min-width:2px}
+.pair .v{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+.t50{display:grid;gap:3px;margin:0;padding:0;list-style:none}
+.t50 li{display:grid;grid-template-columns:26px minmax(0,190px) minmax(0,1fr);gap:10px;align-items:center;font-size:13.5px;min-height:24px}
+.t50 .r{font-family:var(--mono);font-size:12px;color:var(--faint);text-align:right}
+.t50 .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t50 .bw{display:flex;align-items:center;gap:8px;min-width:0}
+.t50 .bar{height:14px;border-radius:0 3px 3px 0;background:var(--other);flex:none;min-width:2px}
+.t50 .v{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap}
+.tracks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:0 24px;margin:0;padding:0;list-style:none}
+.tracks li{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+.tracks .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tracks .a{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* network */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:16px;align-items:start}
+.netbox{border:1px solid var(--rule);border-radius:8px;background:var(--ground)}
+svg#net{display:block;width:100%;min-width:720px;height:auto}
+.edge{stroke:var(--edge);stroke-opacity:.28}
+.node{cursor:pointer}
+.node circle{stroke:var(--surface);stroke-width:1.5}
+.node text{font-family:var(--body);font-size:11px;font-weight:500;fill:var(--ink);paint-order:stroke;stroke:var(--ground);stroke-width:3px;stroke-linejoin:round;pointer-events:none}
+.node.minor text{opacity:0}
+.node:focus{outline:none}
+.node:focus-visible circle{stroke:var(--accent);stroke-width:3}
+svg.has-sel .node:not(.on) circle{opacity:.18}
+svg.has-sel .node:not(.on) text{opacity:0}
+svg.has-sel .node.on text{opacity:1}
+svg.has-sel .edge{stroke-opacity:.05}
+svg.has-sel .edge.on{stroke-opacity:.85;stroke:var(--ink)}
+.node.sel circle{stroke:var(--ink);stroke-width:2.5}
+.side{display:grid;gap:10px;font-size:13.5px;min-width:0}
+.side h3{overflow-wrap:anywhere;line-height:1.35}
+.side .sub{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.side ol{margin:0;padding:0;list-style:none;display:grid;gap:2px}
+.side li button{font-size:13px;color:var(--ink);background:none;border:0;padding:2px 0;cursor:pointer;text-align:left;display:flex;gap:8px;align-items:center;width:100%}
+.side li button:hover{color:var(--accent)}
+.side li span.s{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.foot{font-size:12.5px;color:var(--muted);display:grid;gap:4px}
+.foot p{margin:0}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:520px){.dir .pair{grid-template-columns:minmax(0,150px) minmax(0,1fr)}.panel{padding:16px}.rank-row{gap:8px;font-size:13px}.pair{grid-template-columns:minmax(0,110px) minmax(0,1fr)}.t50 li{grid-template-columns:22px minmax(0,110px) minmax(0,1fr);gap:8px;font-size:12.5px}.seg button{padding:7px 11px}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow" id="hdr">Spotify streaming history</div>
+    <h1>リスニング年表</h1>
+    <p class="lede" id="lede">Spotify から取り寄せた再生履歴のファイルを読み込むと、月ごとに聴いていたアーティストの移り変わり、年ごとのランキング、よく一緒に聴くアーティストの相関図を作ります。ファイルはこのブラウザの中だけで処理され、どこにも送信されません。</p>
+  </header>
+
+  <!-- ===== intro ===== -->
+  <section id="intro" class="stack">
+    <label class="drop" id="drop">
+      <input type="file" id="file" multiple accept=".json,.zip,application/json,application/zip">
+      <p class="big">ここにファイルをドロップ</p>
+      <p class="note">Spotify から届いた zip をそのまま、または中の JSON ファイル（複数可）</p>
+      <div class="row">
+        <span class="btn primary" aria-hidden="true">ファイルを選ぶ</span>
+        <button type="button" class="btn" id="sampleBtn">サンプルで見てみる</button>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </label>
+    <div class="error" id="err" role="alert" hidden></div>
+
+    <div class="cols">
+      <section class="panel">
+        <h2>再生履歴の取り寄せ方</h2>
+        <ol class="steps">
+          <li>ブラウザで Spotify のアカウントページを開き、「プライバシー設定」へ進む。</li>
+          <li>「データをダウンロード」で、<b>拡張ストリーミング履歴</b>（全期間）か<b>アカウントデータ</b>（直近約1年）にチェックを入れてリクエストする。</li>
+          <li>準備ができるとメールが届く。目安はアカウントデータが数日、拡張ストリーミング履歴が最大30日ほど。</li>
+          <li>メールのリンクから zip をダウンロードし、このページに読み込む。</li>
+        </ol>
+      </section>
+      <section class="panel">
+        <h2>読み込めるファイル</h2>
+        <dl class="kv">
+          <dt>拡張版</dt><dd><code>Streaming_History_Audio_*.json</code>（動画の <code>Streaming_History_Video_*.json</code> も可）</dd>
+          <dt>通常版</dt><dd><code>StreamingHistory_music_*.json</code>（古い書き出しの <code>StreamingHistory*.json</code> も可）</dd>
+          <dt>zip</dt><dd>上のファイルを含む zip。中から自動で探します。</dd>
+        </dl>
+        <p class="note">何回かに分けて取り寄せたファイルや、通常版と拡張版を一緒に読み込んでも大丈夫です。重なる記録は1件にまとめます。ポッドキャストは対象外です。</p>
+      </section>
+    </div>
+  </section>
+
+  <!-- ===== app ===== -->
+  <section id="app" class="stack" hidden>
+    <div class="bar">
+      <div class="seg" role="group" aria-label="表示する内容">
+        <button type="button" id="tab-time" data-tab="time" aria-pressed="true">年表</button>
+        <button type="button" id="tab-net" data-tab="net" aria-pressed="false">相関図</button>
+      </div>
+      <span class="sum" id="sum"></span>
+      <button type="button" class="btn" id="resetBtn">別のファイルを読み込む</button>
+    </div>
+
+    <!-- timeline -->
+    <div id="view-time" class="stack">
+      <section class="panel">
+        <div><div class="eyebrow">Era timeline</div><h2>月ごとの「主役」の移り変わり</h2></div>
+        <p class="note">棒の高さはその月の総再生時間、色の部分はその月いちばん聴いたアーティストの再生時間。下の帯は1位が続いた期間です。</p>
+        <div class="scroll"><div class="era" id="era"></div></div>
+        <div class="legend" id="eraLegend"></div>
+      </section>
+      <section class="panel">
+        <div><div class="eyebrow">Monthly hours · top 10</div><h2>上位10組の月別再生時間</h2></div>
+        <div class="legend" id="stackLegend"></div>
+        <div class="chart"><canvas id="stackChart" role="img" aria-label="上位10アーティストの月別再生時間の積み上げグラフ"></canvas></div>
+      </section>
+
+      <div class="yearbar">
+        <div class="seg mono" role="group" aria-label="年を選ぶ" id="yearSeg"></div>
+        <span class="cov" id="cov"></span>
+      </div>
+
+      <section class="kpis" id="kpis" aria-label="選んだ年の概要"></section>
+
+      <section class="panel">
+        <div><div class="eyebrow" id="t50eb">Top 50</div><h2>再生時間が長かったアーティスト 上位50組</h2></div>
+        <ol class="t50" id="t50"></ol>
+        <p class="note">再生時間はスキップ分を含む合計。「回」は30秒以上再生した回数。色付きは全期間の上位10組です。</p>
+      </section>
+
+      <div class="cols" id="cmpCols">
+        <section class="panel" id="rankPanel">
+          <div><div class="eyebrow">Year over year</div><h2 id="rankTitle">前年からの順位の変化</h2></div>
+          <div class="rank" id="rank"></div>
+          <p class="note" id="dropped"></p>
+        </section>
+        <section class="panel" id="halfPanel">
+          <div><div class="eyebrow">First half vs second half</div><h2>前半と後半で何が変わったか</h2></div>
+          <div class="legend" id="halfLegend"></div>
+          <div><div class="eyebrow" style="margin-bottom:8px">後半に伸びた</div><div class="pairs" id="rise"></div></div>
+          <div><div class="eyebrow" style="margin-bottom:8px">後半に減った</div><div class="pairs" id="fall"></div></div>
+          <p class="note">期間の長さが違っても比べられるよう、30日あたりの再生時間に直しています。</p>
+        </section>
+      </div>
+
+      <div class="cols">
+        <section class="panel">
+          <div><div class="eyebrow">By hour</div><h2>時間帯別の再生時間</h2></div>
+          <div class="legend" id="hourLegend"></div>
+          <div class="chart sm"><canvas id="hourChart" role="img" aria-label="時間帯別の1日あたり再生時間"></canvas></div>
+          <p class="note" id="hourNote"></p>
+        </section>
+        <section class="panel">
+          <div><div class="eyebrow">By weekday</div><h2>曜日別の再生時間</h2></div>
+          <div class="legend" id="dowLegend"></div>
+          <div class="chart sm"><canvas id="dowChart" role="img" aria-label="曜日別の1日あたり再生時間"></canvas></div>
+          <p class="note" id="dowNote"></p>
+        </section>
+      </div>
+
+      <section class="panel">
+        <div><div class="eyebrow">Most played</div><h2>よく聴いた曲</h2></div>
+        <ol class="tracks" id="tracks"></ol>
+      </section>
+
+      <section class="panel" id="newPanel">
+        <div><div class="eyebrow">New this year</div><h2>この年にはじめて聴いたアーティスト</h2></div>
+        <p class="note" id="newNote"></p>
+        <div class="rank" id="newList"></div>
+      </section>
+    </div>
+
+    <!-- network -->
+    <div id="view-net" class="stack" hidden>
+      <section class="panel">
+        <div><div class="eyebrow">Listening network</div><h2>よく一緒に聴くアーティストの相関図</h2></div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center">
+          <span class="note">色</span>
+          <div class="seg" role="group" aria-label="色の意味" id="colorSeg">
+            <button type="button" id="c-group" data-c="group" aria-pressed="true">グループ</button>
+            <button type="button" id="c-trend" data-c="trend" aria-pressed="false">伸び</button>
+          </div>
+        </div>
+        <p class="note" id="netNote"></p>
+        <div class="stage">
+          <div>
+            <div class="scroll netbox"><svg id="net" role="img" aria-label="アーティストのつながりを示すネットワーク図"></svg></div>
+            <div class="legend" id="netLegend" style="margin-top:10px"></div>
+          </div>
+          <aside class="side" id="side" aria-live="polite"></aside>
+        </div>
+      </section>
+      <section class="panel" id="dirPanel">
+        <div><div class="eyebrow">Direction</div><h2>好みはどの方向に伸びているか</h2></div>
+        <div class="legend" id="dirLegend"></div>
+        <div class="pairs dir" id="dir"></div>
+        <p class="note" id="dirNote"></p>
+      </section>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>集計方法：時刻はこのブラウザのタイムゾーン（<span id="tz"></span>）に変換し、年は1月1日〜12月31日で区切ります。再生時間はスキップ分を含む合計、再生回数は30秒以上の再生のみ数えます。</p>
+    <p>相関図：30分以上あいたら別の「ひと続き」とみなして再生を区切り、同じひと続きの中で一緒に聴かれた頻度からつながりを計算します（3回以上一緒に聴かれた組のみ）。グループはつながりから自動で分けたもので、ジャンルではありません。</p>
+    <p>読み込んだファイルはこのブラウザの中だけで処理され、外部には送信されません。このページは Spotify とは関係のない個人制作のツールです。</p>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+"use strict";
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>Math.round(n).toLocaleString('ja-JP');
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const PALETTE=['#3b7ddb','#e25a28','#17a077','#d8a200','#d34f8b','#5b47b8','#1a9fc0','#9a6b42','#6d8f1f','#b8323f'];
+const DN=['月','火','水','木','金','土','日'];
+const DAY=864e5;
+function midnight(t){const d=new Date(t);return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();}
+function daysBetween(a,b){return Math.round((midnight(b)-midnight(a))/DAY)+1;}
+function ymd(t){const d=new Date(t);return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;}
+function setStatus(s){$('status').textContent=s;}
+function showError(s){const e=$('err');e.textContent=s;e.hidden=!s;}
+const tick=()=>new Promise(r=>setTimeout(r,0));
+
+/* ---------- loading ---------- */
+async function collectTexts(files){
+  const out=[];
+  for(const f of files){
+    const name=f.name||'';
+    if(/\.zip$/i.test(name)){
+      if(!window.JSZip)throw new Error('zip を開くためのライブラリが読み込めませんでした。インターネット接続を確認するか、zip を展開して中の JSON を選んでください。');
+      let zip; try{zip=await JSZip.loadAsync(f);}catch(e){throw new Error(`「${name}」を zip として開けませんでした。ダウンロードが途中で止まっていないか確認してください。`);}
+      const entries=Object.values(zip.files).filter(z=>!z.dir&&/\.json$/i.test(z.name)&&!/__MACOSX/.test(z.name));
+      for(const z of entries){out.push({name:z.name.split('/').pop(),text:await z.async('string')});}
+    }else if(/\.json$/i.test(name)||f.type==='application/json'){
+      out.push({name,text:await f.text()});
+    }
+  }
+  return out;
+}
+function parseUTCminute(s){const m=/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(s);return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5]):NaN;}
+function parseAll(texts){
+  const ext=[],std=[];let skipped=[],podcast=0;
+  for(const {name,text} of texts){
+    let arr; try{arr=JSON.parse(text);}catch(e){skipped.push(name);continue;}
+    if(!Array.isArray(arr)||!arr.length){skipped.push(name);continue;}
+    const s=arr.find(x=>x&&typeof x==='object')||{};
+    if('ts' in s&&'ms_played' in s){
+      for(const r of arr){const a=r.master_metadata_album_artist_name; if(!a){podcast++;continue;}
+        const t=Date.parse(r.ts); if(!isFinite(t))continue;
+        ext.push({t,a,k:r.master_metadata_track_name||'(不明)',ms:+r.ms_played||0,key:r.ts+'|'+(r.spotify_track_uri||a+'|'+r.master_metadata_track_name)+'|'+r.ms_played});}
+    }else if('endTime' in s&&'msPlayed' in s&&('artistName' in s||'trackName' in s)){
+      for(const r of arr){if(!r.artistName){podcast++;continue;}
+        const t=parseUTCminute(r.endTime); if(!isFinite(t))continue;
+        std.push({t,a:r.artistName,k:r.trackName||'(不明)',ms:+r.msPlayed||0,key:r.endTime+'|'+r.artistName+'|'+r.trackName+'|'+r.msPlayed});}
+    }else if('endTime' in s&&('podcastName' in s||'episodeName' in s)){podcast+=arr.length;}
+    else skipped.push(name);
+  }
+  const seen=new Set(),recs=[];
+  for(const r of ext){if(seen.has(r.key))continue;seen.add(r.key);recs.push(r);}
+  let extMin=Infinity,extMax=-Infinity; for(const r of recs){if(r.t<extMin)extMin=r.t;if(r.t>extMax)extMax=r.t;}
+  let stdUsed=0;
+  for(const r of std){if(seen.has(r.key))continue;seen.add(r.key);
+    if(r.t>=extMin-6e4&&r.t<=extMax+6e4)continue; recs.push(r);stdUsed++;}
+  recs.sort((a,b)=>a.t-b.t);
+  return {recs,extCount:ext.length?recs.length-stdUsed:0,stdCount:stdUsed,skipped,podcast};
+}
+
+/* ---------- analysis ---------- */
+function analyze(recs){
+  for(const r of recs){const d=new Date(r.t);r.y=d.getFullYear();r.mo=r.y*12+d.getMonth();r.h=d.getHours();r.dw=(d.getDay()+6)%7;r.min=r.ms/60000;}
+  const A={};
+  const tot=new Map(); for(const r of recs)tot.set(r.a,(tot.get(r.a)||0)+r.min);
+  const ranked=[...tot.entries()].sort((a,b)=>b[1]-a[1]);
+  A.top10=ranked.slice(0,10).map(x=>x[0]);
+  A.color=new Map(A.top10.map((a,i)=>[a,PALETTE[i]]));
+  const first=new Map(); for(const r of recs)if(!first.has(r.a))first.set(r.a,r.t);
+  A.first=first;
+  const m0=recs[0].mo,m1=recs[recs.length-1].mo; A.months=[];for(let m=m0;m<=m1;m++)A.months.push(m);
+  const pm=A.months.map(()=>new Map());
+  for(const r of recs){const M=pm[r.mo-m0];M.set(r.a,(M.get(r.a)||0)+r.min);}
+  A.total=pm.map(M=>{let s=0;for(const v of M.values())s+=v;return s;});
+  A.era=pm.map(M=>{let best=null,bv=0;for(const [a,v] of M)if(v>bv){bv=v;best=a;}return [best,bv];});
+  A.stack={};for(const a of A.top10)A.stack[a]=pm.map(M=>M.get(a)||0);
+  A.stack['その他']=pm.map((M,i)=>A.total[i]-A.top10.reduce((s,a)=>s+(M.get(a)||0),0));
+  const years=[...new Set(recs.map(r=>r.y))].sort((a,b)=>a-b);
+  A.years=years.map(String); A.Y={};
+  const byYear=new Map(years.map(y=>[y,[]])); for(const r of recs)byYear.get(r.y).push(r);
+  years.forEach((y,i)=>{A.Y[y]=stats(byYear.get(y),i>0?byYear.get(years[i-1]):null,first,y);});
+  A.Y.all=stats(recs,null,first,null);
+  A.from=recs[0].t;A.to=recs[recs.length-1].t;A.hours=A.Y.all.hours;A.count=recs.length;
+  A.net=network(recs,tot,ranked,A);
+  return A;
+}
+function artistTable(rs){const m=new Map();for(const r of rs){let o=m.get(r.a);if(!o){o={a:r.a,min:0,n:0};m.set(r.a,o);}o.min+=r.min;if(r.ms>=30000)o.n++;}return [...m.values()].sort((a,b)=>b.min-a.min);}
+function stats(rs,prev,first,year){
+  const a=rs[0].t,b=rs[rs.length-1].t,days=daysBetween(a,b);
+  const S={from:ymd(a),to:ymd(b),days};
+  let sum=0,skip=0;const tr=new Set(),ar=new Set();
+  const hourly=Array(24).fill(0),dow=Array(7).fill(0);
+  for(const r of rs){sum+=r.min;if(r.ms<30000)skip++;tr.add(r.a+'\u0000'+r.k);ar.add(r.a);hourly[r.h]+=r.min;dow[r.dw]+=r.min;}
+  S.hours=sum/60;S.perDay=sum/days;S.artists=ar.size;S.tracks=tr.size;S.skip=skip/rs.length*100;
+  const wd=Array(7).fill(0);for(let t=midnight(a);t<=midnight(b)+3600e3;t+=DAY){wd[(new Date(t).getDay()+6)%7]++;}
+  S.hourly=hourly.map(v=>v/days);S.dow=dow.map((v,i)=>v/Math.max(1,wd[i]));
+  const tab=artistTable(rs);S.top50=tab.slice(0,50);
+  const tc=new Map();for(const r of rs)if(r.ms>=30000){const k=r.a+'\u0000'+r.k;tc.set(k,(tc.get(k)||0)+1);}
+  S.topTracks=[...tc.entries()].sort((x,y)=>y[1]-x[1]).slice(0,10).map(([k,n])=>{const [ar,t]=k.split('\u0000');return [ar,t,n];});
+  if(year===null)return S;
+  const rm=new Map(tab.map((o,i)=>[o.a,i+1]));
+  if(prev){
+    const pt=artistTable(prev),pmap=new Map(pt.map((o,i)=>[o.a,i+1]));
+    S.rank=tab.slice(0,12).map((o,i)=>[o.a,i+1,o.min,pmap.get(o.a)||null]);
+    const cur12=new Set(tab.slice(0,12).map(o=>o.a));
+    S.dropped=pt.slice(0,12).map((o,i)=>[o.a,i+1,rm.get(o.a)||null]).filter(x=>!cur12.has(x[0]));
+    S.prevDays=daysBetween(prev[0].t,prev[prev.length-1].t);
+    S.new=tab.filter(o=>new Date(first.get(o.a)).getFullYear()===year&&o.min>=30).slice(0,8).map(o=>[o.a,o.min,first.get(o.a)]);
+  }else{S.rank=tab.slice(0,12).map((o,i)=>[o.a,i+1,o.min,null]);}
+  const mid=new Date(year,6,1).getTime(), jun30=mid-DAY;
+  const n1=midnight(a)<mid?daysBetween(a,Math.min(midnight(b),jun30)):0, n2=midnight(b)>=mid?daysBetween(Math.max(midnight(a),mid),b):0;
+  if(n1>=30&&n2>=30){
+    const h1=new Map(),h2=new Map();for(const r of rs){const M=r.t<mid?h1:h2;M.set(r.a,(M.get(r.a)||0)+r.min);}
+    const rows=[];for(const o of tab){const x=h1.get(o.a)||0,z=h2.get(o.a)||0;if(x+z<150)continue;rows.push([o.a,x/n1*30/60,z/n2*30/60]);}
+    rows.forEach(r=>r[3]=r[2]-r[1]);
+    S.rise=rows.slice().sort((p,q)=>q[3]-p[3]).slice(0,6).filter(r=>r[3]>0);
+    S.fall=rows.slice().sort((p,q)=>p[3]-q[3]).slice(0,6).filter(r=>r[3]<0);
+    S.halfTo=[`${new Date(Math.min(midnight(b),jun30)).getMonth()+1}/${new Date(Math.min(midnight(b),jun30)).getDate()}`,`${new Date(b).getMonth()+1}/${new Date(b).getDate()}`];
+    S.halfFrom=[`${new Date(a).getMonth()+1}/${new Date(a).getDate()}`,'7/1'];
+  }
+  return S;
+}
+
+/* ---------- network ---------- */
+function network(recs,tot,ranked,A){
+  const names=ranked.slice(0,90).map(x=>x[0]), n=names.length, idx=new Map(names.map((a,i)=>[a,i]));
+  // sessions
+  const co=new Map(),cnt=Array(n).fill(0);let sess=new Set(),last=-Infinity,nsess=0;
+  const flush=()=>{if(!sess.size)return;nsess++;const L=[...sess].sort((a,b)=>a-b);for(const i of L)cnt[i]++;
+    for(let p=0;p<L.length;p++)for(let q=p+1;q<L.length;q++){const k=L[p]*1000+L[q];co.set(k,(co.get(k)||0)+1);}sess=new Set();};
+  for(const r of recs){if(r.ms<30000)continue;if(r.t-last>30*60e3)flush();last=r.t;const i=idx.get(r.a);if(i!==undefined)sess.add(i);}
+  flush();
+  const S=Array.from({length:n},()=>new Float64Array(n));let mx=0;
+  for(const [k,c] of co){if(c<3)continue;const i=Math.floor(k/1000),j=k%1000;const s=c/Math.sqrt(cnt[i]*cnt[j]);S[i][j]=S[j][i]=s;if(s>mx)mx=s;}
+  if(mx>0)for(const row of S)for(let j=0;j<n;j++)row[j]/=mx;
+  const E=new Map();
+  for(let i=0;i<n;i++){const order=[...S[i].keys()].sort((p,q)=>S[i][q]-S[i][p]).slice(0,3);
+    for(const j of order)if(S[i][j]>0.05){const k=Math.min(i,j)*1000+Math.max(i,j);E.set(k,S[i][j]);}}
+  // components & bridges
+  const comps=()=>{const par=[...Array(n).keys()];const f=x=>par[x]===x?x:(par[x]=f(par[x]));for(const k of E.keys())par[f(Math.floor(k/1000))]=f(k%1000);
+    const g=new Map();for(let i=0;i<n;i++){const r=f(i);if(!g.has(r))g.set(r,[]);g.get(r).push(i);}return [...g.values()].sort((a,b)=>b.length-a.length);};
+  let C=comps();
+  for(const c of C.slice(1)){if(c.length<2)continue;let best=[0,-1,-1];for(const i of c)for(const j of C[0])if(S[i][j]>best[0])best=[S[i][j],i,j];
+    if(best[0]>0)E.set(Math.min(best[1],best[2])*1000+Math.max(best[1],best[2]),best[0]);}
+  C=comps();const main=new Set(C[0]);const loose=[...Array(n).keys()].filter(i=>!main.has(i));
+  const edges=[...E.entries()].map(([k,w])=>[Math.floor(k/1000),k%1000,w]);
+  // communities (modularity local moving)
+  const comm=louvain(n,edges);
+  const groups=new Map();comm.forEach((c,i)=>{if(!groups.has(c))groups.set(c,[]);groups.get(c).push(i);});
+  const gl=[...groups.values()].map(m=>({m,h:m.reduce((s,i)=>s+tot.get(names[i]),0)})).sort((a,b)=>b.h-a.h);
+  const gid=Array(n).fill(-1);
+  gl.forEach((g,k)=>{if(g.m.length<2||k>=PALETTE.length)return;for(const i of g.m)gid[i]=k;});
+  const groupInfo=gl.map((g,k)=>({k,name:names[g.m.slice().sort((p,q)=>tot.get(names[q])-tot.get(names[p]))[0]],size:g.m.length})).filter(g=>g.size>=2&&g.k<PALETTE.length);
+  // trend years
+  const ys=A.years.filter(y=>A.Y[y].days>=30);const yL=ys[ys.length-1],yP=ys[ys.length-2];
+  const rate=y=>{const m=new Map();if(!y)return m;for(const o of A.Y[y].top50)m.set(o.a,0);const d=A.Y[y].days;const t=new Map();
+    for(const r of recs)if(r.y===+y)t.set(r.a,(t.get(r.a)||0)+r.min);for(const [a,v] of t)m.set(a,v/d*30/60);return m;};
+  const rP=rate(yP),rL=rate(yL);
+  const maxH=tot.get(names[0]);
+  const nodes=names.map((a,i)=>({name:a,h:tot.get(a)/60,r:5+22*Math.sqrt(tot.get(a)/maxH),g:gid[i],first:A.first.get(a),rp:rP.get(a)||0,rl:rL.get(a)||0,
+    near:[...S[i].keys()].sort((p,q)=>S[i][q]-S[i][p]).slice(0,5).filter(j=>S[i][j]>0).map(j=>[j,S[i][j]])}));
+  const pos=layout(nodes,edges,main,loose);
+  const dir=groupInfo.map(g=>{let p=0,l=0;nodes.forEach(nd=>{if(nd.g===g.k){p+=nd.rp;l+=nd.rl;}});return {...g,p,l};});
+  return {nodes,edges,pos,loose,groupInfo,dir,yP,yL,nsess};
+}
+function louvain(n,edges){
+  const adj=Array.from({length:n},()=>new Map());let m2=0;
+  for(const [i,j,w] of edges){adj[i].set(j,(adj[i].get(j)||0)+w);adj[j].set(i,(adj[j].get(i)||0)+w);m2+=2*w;}
+  const k=adj.map(a=>{let s=0;for(const v of a.values())s+=v;return s;});
+  let comm=[...Array(n).keys()];
+  if(!m2)return comm;
+  // level 1
+  const tot=k.slice();let moved=true,it=0;
+  while(moved&&it++<60){moved=false;
+    for(let i=0;i<n;i++){if(!k[i])continue;const ci=comm[i];tot[ci]-=k[i];const L=new Map();for(const [j,w] of adj[i]){const c=comm[j];L.set(c,(L.get(c)||0)+w);}
+      let best=ci,bg=(L.get(ci)||0)-tot[ci]*k[i]/m2;for(const [c,w] of L){const g=w-tot[c]*k[i]/m2;if(g>bg+1e-12){bg=g;best=c;}}
+      comm[i]=best;tot[best]+=k[i];if(best!==ci)moved=true;}}
+  // level 2: aggregate communities and move them
+  const ids=[...new Set(comm)],cid=new Map(ids.map((c,x)=>[c,x])),N2=ids.length;
+  const adj2=Array.from({length:N2},()=>new Map());
+  for(let i=0;i<n;i++)for(const [j,w] of adj[i]){const a=cid.get(comm[i]),b=cid.get(comm[j]);adj2[a].set(b,(adj2[a].get(b)||0)+w);}
+  const k2=adj2.map(a=>{let s=0;for(const v of a.values())s+=v;return s;});
+  const c2=[...Array(N2).keys()],t2=k2.slice();moved=true;it=0;
+  while(moved&&it++<60){moved=false;
+    for(let i=0;i<N2;i++){const ci=c2[i];t2[ci]-=k2[i];const L=new Map();for(const [j,w] of adj2[i]){if(j===i)continue;const c=c2[j];L.set(c,(L.get(c)||0)+w);}
+      let best=ci,bg=(L.get(ci)||0)-t2[ci]*k2[i]/m2;for(const [c,w] of L){const g=w-t2[c]*k2[i]/m2;if(g>bg+1e-12){bg=g;best=c;}}
+      c2[i]=best;t2[best]+=k2[i];if(best!==ci)moved=true;}}
+  return comm.map(c=>c2[cid.get(c)]);
+}
+const W=1100,H=760,PAD=50,STRIP=70;
+function layout(nodes,edges,main,loose){
+  const n=nodes.length,P=nodes.map(()=>[W/2,H/2]);
+  const mainIdx=[...main];
+  if(window.d3&&mainIdx.length>1){
+    const sim=nodes.map((nd,i)=>({i,r:nd.r}));
+    const links=edges.filter(([i,j])=>main.has(i)&&main.has(j)).map(([i,j,w])=>({source:i,target:j,w}));
+    const s=d3.forceSimulation(mainIdx.map(i=>sim[i]))
+      .force('link',d3.forceLink(links).id(d=>d.i).distance(l=>30+(1-l.w)*90).strength(l=>0.15+0.6*l.w))
+      .force('charge',d3.forceManyBody().strength(-55))
+      .force('collide',d3.forceCollide(d=>d.r+7))
+      .force('x',d3.forceX(0).strength(0.04)).force('y',d3.forceY(0).strength(0.06)).stop();
+    for(let t=0;t<500;t++)s.tick();
+    let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;for(const i of mainIdx){const d=sim[i];x0=Math.min(x0,d.x);x1=Math.max(x1,d.x);y0=Math.min(y0,d.y);y1=Math.max(y1,d.y);}
+    const bottom=H-PAD-(loose.length?STRIP:0);
+    const sx=(W-2*PAD-60)/Math.max(1,x1-x0),sy=(bottom-PAD)/Math.max(1,y1-y0),sc=Math.min(sx,sy*1.25);
+    const cx=(x0+x1)/2,cy=(y0+y1)/2;
+    for(const i of mainIdx){P[i]=[W/2+(sim[i].x-cx)*Math.min(sc,sx),(PAD+bottom)/2+(sim[i].y-cy)*Math.min(sc,sy)];}
+    for(let it=0;it<200;it++){let mv=false;
+      for(let p=0;p<mainIdx.length;p++)for(let q=p+1;q<mainIdx.length;q++){const i=mainIdx[p],j=mainIdx[q];const dx=P[j][0]-P[i][0],dy=P[j][1]-P[i][1];const d=Math.hypot(dx,dy)||0.01,need=nodes[i].r+nodes[j].r+12;
+        if(d<need){const s2=(need-d)/2/d;P[i][0]-=dx*s2;P[i][1]-=dy*s2;P[j][0]+=dx*s2;P[j][1]+=dy*s2;mv=true;}}
+      for(const i of mainIdx){P[i][0]=Math.max(PAD+40,Math.min(W-PAD-40,P[i][0]));P[i][1]=Math.max(PAD,Math.min(bottom,P[i][1]));}
+      if(!mv)break;}
+  }
+  loose.forEach((i,k)=>{P[i]=[loose.length>1?PAD+40+k*(W-2*PAD-80)/(loose.length-1):W/2,H-PAD+5];});
+  return P;
+}
+
+/* ---------- sample data (fictional) ---------- */
+function sampleRecords(){
+  let s=20240101;const rnd=()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+  const G=[
+    ['ハルカゼ楽団','夜明けのソーダ','ペーパームーン','灯台クラブ','ミナモ'],
+    ['ノイズガーデン','ブリキの惑星','赤い自転車','サイレンズ','ロードムービーズ'],
+    ['Quiet Lake Trio','Midnight Horns','The Brass Atlas','Blue Avenue Quartet'],
+    ['スローモーション','Velvet Tone','ネオンフィッシュ','月曜日のファンク'],
+    ['ひなた','Luna Park','オレンジ通信']];
+  const minor=Array.from({length:28},(_,i)=>`架空アーティスト${String(i+1).padStart(2,'0')}`);
+  const start=new Date(2024,0,1).getTime(),days=730,out=[];
+  for(let d=0;d<days;d++){
+    const p=d/days, w=[0.25+0.25*p,0.35-0.15*p,0.2-0.12*p,0.12+0.04*Math.sin(p*9),0.08+0.1*p];
+    const nS=rnd()<0.12?0:1+Math.floor(rnd()*2.6);
+    for(let k=0;k<nS;k++){
+      let u=rnd()*w.reduce((a,b)=>a+b),g=0;while(u>w[g]){u-=w[g];g++;}
+      const dow=new Date(start+d*DAY).getDay();
+      let t=start+d*DAY+((dow===0||dow===6)?10+rnd()*12:(rnd()<0.35?7.5+rnd()*1.5:16+rnd()*7))*3600e3;
+      const plays=5+Math.floor(rnd()*14);
+      for(let q=0;q<plays;q++){
+        const pool=rnd()<0.1?minor:G[g];const ai=Math.min(pool.length-1,Math.floor(Math.pow(rnd(),1.6)*pool.length));
+        const skip=rnd()<0.28;const ms=skip?Math.floor(3000+rnd()*25000):Math.floor(150000+rnd()*150000);
+        t+=ms;out.push({t,a:pool[ai],k:`曲${1+Math.floor(Math.pow(rnd(),1.4)*12)}`,ms});t+=1000;}
+    }}
+  return out;
+}
+
+/* ---------- rendering: timeline ---------- */
+let A=null,cur=null,charts=[],stack=null,colorBy='group',sel=null;
+const colOf=a=>A.color.get(a)||cssv('--other');
+const monthLabel=m=>({y:Math.floor(m/12),mo:m%12+1});
+function renderStatic(){
+  const N=A.months.length;
+  $('hdr').textContent=`Spotify streaming history · ${ymd(A.from)} – ${ymd(A.to)}`;
+  $('sum').textContent=`${ymd(A.from)}〜${ymd(A.to)}・${fmt(A.count)}件・約${fmt(A.hours)}時間`;
+  const max=Math.max(...A.total,1),cols=`grid-template-columns:repeat(${N},1fr)`;
+  const bars=`<div class="era-bars" style="${cols}">`+A.era.map(([a,v],i)=>{const tot=A.total[i];if(!tot)return '<div></div>';const {y,mo}=monthLabel(A.months[i]);
+    return `<div class="era-bar" style="height:${tot/max*100}%" title="${y}/${mo}：合計${(tot/60).toFixed(1)}時間／1位 ${esc(a)} ${(v/60).toFixed(1)}時間"><span style="height:${v/tot*100}%;background:${colOf(a)}"></span></div>`}).join('')+'</div>';
+  const segs=[];A.era.forEach(([a])=>{const l=segs[segs.length-1];if(l&&l.a===a)l.n++;else segs.push({a,n:1});});
+  const band='<div class="era-band">'+segs.map(s=>`<div class="era-seg" style="flex:${s.n} 1 0;background:${s.a?colOf(s.a):'transparent'}" title="${esc(s.a||'記録なし')}（${s.n}ヶ月）">${s.a&&s.n>=2?esc(s.a):''}</div>`).join('')+'</div>';
+  const months=`<div class="era-months" style="${cols}">`+A.months.map((m,i)=>{const {y,mo}=monthLabel(m);return `<div>${(i===0||mo===1)?`<b>${y}</b>`:''}${mo}</div>`}).join('')+'</div>';
+  $('era').innerHTML=bars+band+months;$('era').style.minWidth=Math.max(760,N*24)+'px';
+  const cnt=new Map();A.era.forEach(([a])=>{if(a)cnt.set(a,(cnt.get(a)||0)+1);});
+  $('eraLegend').innerHTML=[...cnt.entries()].sort((x,y)=>y[1]-x[1]).map(([a,c])=>`<span><i style="background:${colOf(a)}"></i>${esc(a)}（${c}ヶ月）</span>`).join('');
+  $('stackLegend').innerHTML=[...A.top10,'その他'].map(a=>`<span><i style="background:${a==='その他'?cssv('--other'):colOf(a)}"></i>${esc(a)}</span>`).join('');
+  $('yearSeg').innerHTML=[...A.years,'all'].map(y=>`<button type="button" id="yr-${y}" data-y="${y}">${y==='all'?'全期間':y}</button>`).join('');
+  $('tz').textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||'端末の設定';
+}
+function pct(a,b){const p=(a-b)/b*100;return (p>=0?'+':'−')+Math.abs(p).toFixed(0)+'%';}
+function kpi(label,val,unit,prev){return `<div class="kpi"><div class="label">${label}</div><div class="val num">${val}<small>${unit}</small></div><div class="prev">${prev||''}</div></div>`;}
+function renderYear(){
+  const y=cur,S=A.Y[y],i=A.years.indexOf(y),py=i>0?A.years[i-1]:null,P=py?A.Y[py]:null,full=d=>d>=365,yl=y==='all'?'全期間':y+'年';
+  document.querySelectorAll('#yearSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.y===y?'true':'false'));
+  $('cov').textContent=`${S.from}〜${S.to}（${S.days}日分）`+(y!=='all'&&!full(S.days)?'　※1年分そろっていません':'');
+  const pv=(v,u)=>P?`${py}年 ${v}${u}`:'';
+  $('kpis').innerHTML=kpi('総再生時間',fmt(S.hours),'時間',pv(fmt(P?P.hours:0),'時間'))+
+    kpi('1日あたり',fmt(S.perDay),'分',P?pv(fmt(P.perDay),'分')+`<span class="delta">${pct(S.perDay,P.perDay)}</span>`:'')+
+    kpi('聴いたアーティスト',fmt(S.artists),'組',pv(fmt(P?P.artists:0),'組'))+
+    kpi('聴いた曲',fmt(S.tracks),'曲',pv(fmt(P?P.tracks:0),'曲'))+
+    kpi('スキップ率',S.skip.toFixed(1),'%',pv(P?P.skip.toFixed(1):'','%'));
+  $('t50eb').textContent=`Top 50 · ${yl}`;
+  const max=S.top50[0].min;
+  $('t50').innerHTML=S.top50.map((o,k)=>`<li><span class="r">${k+1}</span><span class="nm" title="${esc(o.a)}">${esc(o.a)}</span><span class="bw"><span class="bar" style="width:calc((100% - 120px) * ${(o.min/max).toFixed(4)});background:${colOf(o.a)}"></span><span class="v">${(o.min/60).toFixed(1)}h・${fmt(o.n)}回</span></span></li>`).join('');
+  const hasR=!!S.rank,hasH=!!(S.rise&&(S.rise.length||S.fall.length));
+  $('rankPanel').hidden=!hasR;$('halfPanel').hidden=!hasH;$('cmpCols').hidden=!hasR&&!hasH;
+  if(hasR){
+    $('rankTitle').textContent=P?`${y}年の上位12組と${py}年からの変化`:`${y}年の上位12組`;
+    $('rank').innerHTML=S.rank.map(([a,now,min,prev])=>{let chip='<span></span>';
+      if(P){if(prev==null)chip='<span class="chip newc">圏外から</span>';else if(prev>now)chip=`<span class="chip up">${prev}位→ ↑${prev-now}</span>`;else if(prev<now)chip=`<span class="chip down">${prev}位→ ↓${now-prev}</span>`;else chip='<span class="chip flat">変わらず</span>';}
+      return `<div class="rank-row"><span class="r">${now}</span><span class="name"><i class="dot" style="background:${colOf(a)}"></i>${esc(a)}</span><span class="h">${(min/60).toFixed(1)}h</span>${chip}</div>`}).join('');
+    let note='';
+    if(P&&S.dropped.length)note+=`${py}年の上位12組から外れた：`+S.dropped.map(d=>`${d[0]}（${d[1]}位→${d[2]?d[2]+'位':'再生なし'}）`).join('、')+'。';
+    if(P&&!full(P.days))note+=`${py}年は${P.days}日分しかないため、順位の変化は参考程度です。`;
+    if(!P)note='これより前の年のデータがないため、変化は表示していません。';
+    $('dropped').textContent=note;
+  }
+  if(hasH){
+    $('halfLegend').innerHTML=`<span><i style="background:var(--y1)"></i>前半 ${S.halfFrom[0]}〜${S.halfTo[0]}</span><span><i style="background:var(--y2)"></i>後半 7/1〜${S.halfTo[1]}</span>`;
+    const m=Math.max(...S.rise.concat(S.fall).map(r=>Math.max(r[1],r[2])),0.01);
+    const pr=rows=>rows.length?rows.map(r=>`<div class="pair"><span class="nm" title="${esc(r[0])}">${esc(r[0])}</span><div class="bars"><div class="row"><div class="b" style="width:${r[1]/m*80}%;background:var(--y1)"></div><span class="v">${r[1].toFixed(1)}h/月</span></div><div class="row"><div class="b" style="width:${r[2]/m*80}%;background:var(--y2)"></div><span class="v">${r[2].toFixed(1)}h/月</span></div></div></div>`).join(''):'<p class="note">該当なし</p>';
+    $('rise').innerHTML=pr(S.rise);$('fall').innerHTML=pr(S.fall);
+  }
+  $('tracks').innerHTML=S.topTracks.map((t,k)=>`<li><span class="num" style="color:var(--muted)">${k+1}</span><div style="min-width:0"><div class="t">${esc(t[1])}</div><div class="a">${esc(t[0])}</div></div><span class="num" style="font-size:12.5px;color:var(--muted)">${t[2]}回</span></li>`).join('');
+  const hasN=!!(S.new&&S.new.length);$('newPanel').hidden=!hasN;
+  if(hasN){
+    $('newNote').textContent=`読み込んだ履歴のなかで${y}年が初登場で、30分以上聴いたもの。`+(P&&!full(P.days)?`${py}年のデータが${P.days}日分しかないため、それ以前から聴いていたアーティストも含まれます。`:'');
+    $('newList').innerHTML=S.new.map(([a,min,f],k)=>{const d=new Date(f);return `<div class="rank-row"><span class="r">${k+1}</span><span class="name"><i class="dot" style="background:${colOf(a)}"></i>${esc(a)}</span><span class="h">${min>=120?(min/60).toFixed(1)+'h':fmt(min)+'分'}</span><span class="chip newc">${d.getFullYear()}/${d.getMonth()+1}〜</span></div>`}).join('');
+  }
+  const lg=P?`<span><i style="background:var(--y1)"></i>${py}年</span><span><i style="background:var(--y2)"></i>${yl}</span>`:`<span><i style="background:var(--y2)"></i>${yl}</span>`;
+  $('hourLegend').innerHTML=lg;$('dowLegend').innerHTML=lg;
+  const peak=a=>a.indexOf(Math.max(...a));
+  $('hourNote').textContent=`1日あたりの平均（分）。ピークは${peak(S.hourly)}時台`+(P?`（${py}年は${peak(P.hourly)}時台）。`:'。');
+  $('dowNote').textContent=`その曜日1日あたりの平均（分）。いちばん多いのは${DN[peak(S.dow)]}曜、少ないのは${DN[S.dow.indexOf(Math.min(...S.dow))]}曜。`;
+  yearCharts(S,P,yl,py);
+}
+function chartBase(){Chart.defaults.font.family=cssv('--body');Chart.defaults.color=cssv('--muted');
+  return {grid:cssv('--rule'),surf:cssv('--surface'),tip:{backgroundColor:cssv('--ink'),titleColor:cssv('--surface'),bodyColor:cssv('--surface'),padding:10,cornerRadius:6}};}
+function buildStack(){
+  if(!window.Chart)return;if(stack)stack.destroy();const c=chartBase();
+  const labels=A.months.map((m,i)=>{const {y,mo}=monthLabel(m);return (mo===1||i===0)?`${String(y).slice(2)}/${mo}`:`${mo}`;});
+  const names=[...A.top10,'その他'];
+  stack=new Chart($('stackChart'),{type:'line',data:{labels,datasets:names.map(a=>({label:a,data:A.stack[a].map(v=>v/60),fill:true,backgroundColor:a==='その他'?cssv('--other'):colOf(a)+'d9',borderColor:c.surf,borderWidth:1,pointRadius:0,tension:.25}))},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{autoSkip:A.months.length>30,maxRotation:0,font:{size:10.5}}},y:{stacked:true,grid:{color:c.grid},border:{display:false},ticks:{callback:v=>v+'h'}}},
+      plugins:{legend:{display:false},tooltip:{...c.tip,itemSort:(a,b)=>b.parsed.y-a.parsed.y,callbacks:{title:i=>{const {y,mo}=monthLabel(A.months[i[0].dataIndex]);return `${y}/${mo}`;},label:x=>` ${x.dataset.label}: ${x.parsed.y.toFixed(1)}時間`}}}}});
+}
+function yearCharts(S,P,yl,py){
+  if(!window.Chart)return;charts.forEach(c=>c.destroy());charts=[];const c=chartBase();
+  const mk=(id,lab,key,type,title)=>{const ds=[];
+    if(P)ds.push({label:py+'年',data:P[key],backgroundColor:cssv('--y1'),borderColor:cssv('--y1'),borderWidth:2,pointRadius:0,tension:.3,borderRadius:3,maxBarThickness:18});
+    ds.push({label:yl,data:S[key],backgroundColor:cssv('--y2'),borderColor:cssv('--y2'),borderWidth:2,pointRadius:0,tension:.3,borderRadius:3,maxBarThickness:18});
+    charts.push(new Chart($(id),{type,data:{labels:lab,datasets:ds},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+      scales:{x:{grid:{display:false},ticks:{autoSkip:false,maxRotation:0,font:{size:10.5}}},y:{beginAtZero:true,grid:{color:c.grid},border:{display:false},ticks:{callback:v=>v+'分'}}},
+      plugins:{legend:{display:false},tooltip:{...c.tip,callbacks:{title,label:x=>` ${x.dataset.label}: ${x.parsed.y.toFixed(1)}分`}}}}}));};
+  mk('hourChart',[...Array(24).keys()].map(h=>h%3===0?h+'時':''),'hourly','line',i=>i[0].dataIndex+'時台');
+  mk('dowChart',DN,'dow','bar',i=>i[0].label+'曜');
+}
+
+/* ---------- rendering: network ---------- */
+const NS='http://www.w3.org/2000/svg';let nodeEls=[],edgeEls=[];
+function trendOf(nd){const a=nd.rp,b=nd.rl;if(a+b<0.15)return 'flat';const d=(b-a)/Math.max(a,b);return d>0.25?'up':d<-0.25?'down':'flat';}
+function gcol(g){return g>=0?PALETTE[g]:cssv('--other');}
+function renderNet(){
+  const N=A.net,svg=$('net');svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.replaceChildren();sel=null;
+  const gE=document.createElementNS(NS,'g'),gN=document.createElementNS(NS,'g');svg.append(gE,gN);
+  edgeEls=N.edges.map(([i,j,w])=>{const l=document.createElementNS(NS,'line');l.setAttribute('class','edge');
+    l.setAttribute('x1',N.pos[i][0]);l.setAttribute('y1',N.pos[i][1]);l.setAttribute('x2',N.pos[j][0]);l.setAttribute('y2',N.pos[j][1]);l.setAttribute('stroke-width',(0.6+w*3).toFixed(2));gE.append(l);return l;});
+  const lab=new Set(N.nodes.map((n,i)=>[n.h,i]).sort((a,b)=>b[0]-a[0]).slice(0,28).map(x=>x[1]));
+  nodeEls=N.nodes.map((nd,i)=>{const g=document.createElementNS(NS,'g');g.setAttribute('class','node'+(lab.has(i)?'':' minor'));g.setAttribute('tabindex','0');g.setAttribute('role','button');g.setAttribute('aria-label',nd.name);
+    g.setAttribute('transform',`translate(${N.pos[i][0].toFixed(1)},${N.pos[i][1].toFixed(1)})`);
+    const c=document.createElementNS(NS,'circle');c.setAttribute('r',nd.r.toFixed(1));
+    const t=document.createElementNS(NS,'text');t.setAttribute('y',(nd.r+11).toFixed(1));t.setAttribute('text-anchor','middle');t.textContent=nd.name.length>18?nd.name.slice(0,17)+'…':nd.name;
+    const ti=document.createElementNS(NS,'title');ti.textContent=nd.name;g.append(ti,c,t);gN.append(g);
+    g.addEventListener('click',e=>{e.stopPropagation();select(sel===i?null:i);});
+    g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(sel===i?null:i);}});return g;});
+  svg.onclick=()=>select(null);
+  $('c-trend').hidden=!N.yP;
+  $('netNote').textContent=`再生時間の上位${N.nodes.length}組。同じひと続き（全${fmt(N.nsess)}回）の中でよく一緒に聴いたアーティストどうしが線で結ばれ、近くに集まります。円の大きさは再生時間。円を押すと、つながっている相手だけが残ります。`;
+  paintNet();
+  // direction
+  const D=N.dir.filter(g=>g.p+g.l>0);$('dirPanel').hidden=!N.yP||!D.length;
+  if(N.yP){
+    $('dirLegend').innerHTML=`<span><i style="background:var(--flat)"></i>${N.yP}年</span><span><i style="background:var(--ink)"></i>${N.yL}年</span>`;
+    const m=Math.max(...D.map(g=>Math.max(g.p,g.l)),0.01);
+    $('dir').innerHTML=D.map(g=>{const d=g.p+g.l<0.3?'':(g.l-g.p)/Math.max(g.p,g.l)>0.25?' <span class="chip up">増</span>':(g.l-g.p)/Math.max(g.p,g.l)<-0.25?' <span class="chip down">減</span>':'';
+      return `<div class="pair"><span class="nm" title="${esc(g.name)}のグループ"><i class="dot" style="background:${gcol(g.k)};border-radius:50%"></i>${esc(g.name)} のグループ${d}</span><div class="bars"><div class="row"><div class="b" style="width:${g.p/m*80}%;background:var(--flat)"></div><span class="v">${g.p.toFixed(1)}h</span></div><div class="row"><div class="b" style="width:${g.l/m*80}%;background:var(--ink)"></div><span class="v">${g.l.toFixed(1)}h</span></div></div></div>`}).join('');
+    $('dirNote').textContent=`相関図のグループごとに、30日あたりの再生時間を${N.yP}年と${N.yL}年で比べたもの。グループ名はその中でいちばん聴いたアーティスト。「増」「減」は25%以上の変化。`;
+  }
+}
+function paintNet(){
+  const N=A.net;
+  nodeEls.forEach((g,i)=>{const nd=N.nodes[i];g.querySelector('circle').style.fill=colorBy==='group'?gcol(nd.g):cssv('--'+trendOf(nd));});
+  document.querySelectorAll('#colorSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===colorBy?'true':'false'));
+  $('netLegend').innerHTML=colorBy==='group'
+    ? N.groupInfo.map(g=>`<span><i style="background:${gcol(g.k)};border-radius:50%"></i>${esc(g.name)} のグループ（${g.size}組）</span>`).join('')+`<span><i style="background:var(--other);border-radius:50%"></i>どのグループにも入らない</span>`
+    : `<span><i style="background:var(--up);border-radius:50%"></i>${N.yL}年に増えた</span><span><i style="background:var(--flat);border-radius:50%"></i>ほぼ同じ／少量</span><span><i style="background:var(--down);border-radius:50%"></i>${N.yL}年に減った</span><span>（${N.yP}年との比較、30日あたり）</span>`;
+  mark();
+}
+function mark(){
+  const N=A.net,svg=$('net');svg.classList.toggle('has-sel',sel!==null);const on=new Set();if(sel!==null)on.add(sel);
+  N.edges.forEach(([i,j],k)=>{const hit=sel!==null&&(i===sel||j===sel);edgeEls[k].classList.toggle('on',hit);if(hit){on.add(i);on.add(j);}});
+  nodeEls.forEach((g,i)=>{g.classList.toggle('on',on.has(i));g.classList.toggle('sel',i===sel);});
+  const el=$('side');
+  if(sel===null){el.innerHTML=`<h3>アーティストを選ぶ</h3><p class="note">円を押すと、つながっている相手だけが残り、ここに詳細が出ます。もう一度押すか、余白を押すと解除。名前が出ていない小さい円も、押すと名前が出ます。</p>`+(N.loose.length?`<p class="note">図のいちばん下の列は、どことも線がつながらなかったアーティストです。</p>`:'');return;}
+  const nd=N.nodes[sel],tr={up:'増えた',down:'減った',flat:'ほぼ同じ／少量'}[trendOf(nd)],gi=N.groupInfo.find(g=>g.k===nd.g),f=new Date(nd.first);
+  el.innerHTML=`<h3><span class="dot" style="background:${gcol(nd.g)};border-radius:50%"></span>${esc(nd.name)}</h3>
+  <dl class="kv"><dt>再生時間</dt><dd class="num">${nd.h.toFixed(1)}h</dd><dt>グループ</dt><dd>${gi?esc(gi.name)+' のグループ':'—'}</dd><dt>初めて聴いた</dt><dd class="num">${f.getFullYear()}/${f.getMonth()+1}</dd>${N.yP?`<dt>30日あたり</dt><dd class="num">${nd.rp.toFixed(1)}h → ${nd.rl.toFixed(1)}h（${tr}）</dd>`:''}</dl>
+  <div class="sub">一緒によく聴く</div>`+(nd.near.length?'<ol>'+nd.near.map(([j,s])=>`<li><button type="button" data-n="${j}"><span class="dot" style="background:${gcol(N.nodes[j].g)};border-radius:50%"></span>${esc(N.nodes[j].name)}<span class="s">${s.toFixed(2)}</span></button></li>`).join('')+'</ol>':'<p class="note">該当なし</p>');
+}
+function select(i){sel=i;mark();}
+
+/* ---------- flow ---------- */
+async function run(recsPromise,label){
+  showError('');
+  try{
+    setStatus('読み込み中…');await tick();
+    const res=await recsPromise;
+    if(!res.recs.length){throw new Error('音楽の再生記録が見つかりませんでした。Spotify から届いた zip、または StreamingHistory_music_*.json / Streaming_History_Audio_*.json を選んでください。'+(res.skipped.length?`（読めなかったファイル：${res.skipped.slice(0,5).join('、')}${res.skipped.length>5?' ほか':''}）`:''));}
+    setStatus(`${fmt(res.recs.length)}件を集計中…`);await tick();
+    A=analyze(res.recs);
+    $('intro').hidden=true;$('app').hidden=false;
+    $('lede').textContent=label==='sample'?'架空のアーティストで作ったサンプルデータを表示しています。実際の数値ではありません。':`読み込んだ再生履歴（${ymd(A.from)}〜${ymd(A.to)}）から作った年表と相関図です。`+(res.skipped.length?` 読めなかったファイル：${res.skipped.join('、')}`:'');
+    renderStatic();cur=A.years[A.years.length-1];buildStack();renderYear();renderNet();setTab('time');
+    setStatus('');window.scrollTo(0,0);
+  }catch(e){setStatus('');showError(e.message||String(e));console.error(e);}
+}
+function setTab(t){
+  $('view-time').hidden=t!=='time';$('view-net').hidden=t!=='net';
+  document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tab===t?'true':'false'));
+}
+$('file').addEventListener('change',e=>{const fs=[...e.target.files];if(fs.length)run(collectTexts(fs).then(parseAll));e.target.value='';});
+const drop=$('drop');
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{const fs=[...e.dataTransfer.files];if(fs.length)run(collectTexts(fs).then(parseAll));});
+$('sampleBtn').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();run(Promise.resolve({recs:sampleRecords(),skipped:[]}),'sample');});
+$('resetBtn').addEventListener('click',()=>{A=null;$('app').hidden=true;$('intro').hidden=false;
+  $('lede').textContent='Spotify から取り寄せた再生履歴のファイルを読み込むと、月ごとに聴いていたアーティストの移り変わり、年ごとのランキング、よく一緒に聴くアーティストの相関図を作ります。ファイルはこのブラウザの中だけで処理され、どこにも送信されません。';$('hdr').textContent='Spotify streaming history';});
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
+$('yearSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(b){cur=b.dataset.y;renderYear();}});
+$('colorSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(b){colorBy=b.dataset.c;paintNet();}});
+$('side').addEventListener('click',e=>{const b=e.target.closest('button[data-n]');if(b)select(+b.dataset.n);});
+const rethemed=()=>{if(!A)return;renderStatic();buildStack();renderYear();paintNet();};
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rethemed);}catch(e){}
+new MutationObserver(rethemed).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+$('tz').textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||'端末の設定';
+</script>
+</body>
+</html>
